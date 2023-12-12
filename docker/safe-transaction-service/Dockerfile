@@ -1,0 +1,1 @@
+FROM gulabs/safe-transaction-service:v1.0.0

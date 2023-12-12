@@ -1,0 +1,1 @@
+FROM gulabs/safe-wallet-web:v1.0.0

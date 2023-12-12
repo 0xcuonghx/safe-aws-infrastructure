@@ -1,0 +1,1 @@
+FROM gulabs/safe-events-service:v1.0.0

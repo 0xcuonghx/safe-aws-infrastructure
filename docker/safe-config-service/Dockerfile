@@ -1,0 +1,1 @@
+FROM gulabs/safe-config-service:v1.0.0

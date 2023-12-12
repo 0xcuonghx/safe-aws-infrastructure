@@ -1,0 +1,1 @@
+FROM gulabs/safe-client-gateway-nest:v1.0.0
