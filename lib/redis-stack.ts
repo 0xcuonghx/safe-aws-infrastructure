@@ -7,7 +7,7 @@ interface RedisStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
 }
 
-export class RedisStack extends cdk.Stack {
+export class RedisStack extends cdk.NestedStack {
   private _connections: ec2.Connections;
   private _cluster: elasticache.CfnCacheCluster;
 

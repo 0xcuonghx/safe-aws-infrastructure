@@ -12,7 +12,7 @@ interface SafeClientGatewayStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
 }
 
-export class SafeClientGatewayStack extends cdk.Stack {
+export class SafeClientGatewayStack extends cdk.NestedStack {
   constructor(
     scope: Construct,
     id: string,
