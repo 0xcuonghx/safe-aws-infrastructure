@@ -1,0 +1,73 @@
+import * as cdk from "aws-cdk-lib";
+import { Construct } from "constructs";
+import * as ec2 from "aws-cdk-lib/aws-ec2";
+import * as elasticache from "aws-cdk-lib/aws-elasticache";
+
+interface RedisStackProps extends cdk.StackProps {
+  vpc: ec2.IVpc;
+}
+
+export class RedisStack extends cdk.Stack {
+  private _connections: ec2.Connections;
+
+  constructor(scope: Construct, id: string, props: RedisStackProps) {
+    super(scope, id, props);
+
+    const { vpc } = props;
+
+    const redisSecurityGroup = new ec2.SecurityGroup(
+      this,
+      "RedisServerSecurityGroup",
+      {
+        vpc,
+        allowAllOutbound: true,
+        description: "security group for redis",
+      }
+    );
+
+    cdk.Tags.of(redisSecurityGroup).add("Name", "redis-server");
+
+    redisSecurityGroup.addIngressRule(
+      redisSecurityGroup,
+      ec2.Port.allTcp(),
+      "default-redis-server"
+    );
+
+    this._connections = new ec2.Connections({
+      securityGroups: [redisSecurityGroup],
+      defaultPort: ec2.Port.tcp(6379),
+    });
+
+    const redisSubnetGroup = new elasticache.CfnSubnetGroup(
+      this,
+      "RedisSubnetGroup",
+      {
+        description: "subnet group for redis",
+        subnetIds: vpc
+          .selectSubnets({
+            subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
+          })
+          .subnetIds.concat(
+            vpc.selectSubnets({
+              subnetType: ec2.SubnetType.PUBLIC,
+            }).subnetIds
+          ),
+      }
+    );
+
+    const redisCluster = new elasticache.CfnCacheCluster(this, "RedisCluster", {
+      autoMinorVersionUpgrade: true,
+      cacheNodeType: "cache.t3.small",
+      engine: "redis",
+      numCacheNodes: 1,
+      cacheSubnetGroupName: redisSubnetGroup.ref,
+      vpcSecurityGroupIds: [redisSecurityGroup.securityGroupId],
+    });
+
+    redisCluster.addDependency(redisSubnetGroup);
+  }
+
+  public get connections(): ec2.Connections {
+    return this._connections;
+  }
+}
