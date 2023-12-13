@@ -9,6 +9,7 @@ interface RedisStackProps extends cdk.StackProps {
 
 export class RedisStack extends cdk.Stack {
   private _connections: ec2.Connections;
+  private _cluster: elasticache.CfnCacheCluster;
 
   constructor(scope: Construct, id: string, props: RedisStackProps) {
     super(scope, id, props);
@@ -65,9 +66,14 @@ export class RedisStack extends cdk.Stack {
     });
 
     redisCluster.addDependency(redisSubnetGroup);
+    this._cluster = redisCluster;
   }
 
   public get connections(): ec2.Connections {
     return this._connections;
+  }
+
+  public get cluster(): elasticache.CfnCacheCluster {
+    return this._cluster;
   }
 }
