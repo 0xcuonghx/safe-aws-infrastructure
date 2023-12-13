@@ -11,6 +11,7 @@ import { SafeLoadBalancerStack } from "./safe-load-balancer-stack";
 interface SafeClientGatewayStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
   loadBalancer: SafeLoadBalancerStack;
+  logGroup: logs.LogGroup;
 }
 
 export class SafeClientGatewayStack extends cdk.NestedStack {
@@ -21,7 +22,7 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
   ) {
     super(scope, id, props);
 
-    const { vpc, loadBalancer } = props;
+    const { vpc, loadBalancer, logGroup } = props;
 
     const redisCluster = new SafeRedisStack(this, "RedisCluster", {
       vpc,
@@ -49,7 +50,7 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
       containerName: "web",
       workingDirectory: "/app",
       logging: new ecs.AwsLogDriver({
-        logGroup: new logs.LogGroup(this, "LogGroup"),
+        logGroup,
         streamPrefix: "Web",
         mode: ecs.AwsLogDriverMode.NON_BLOCKING,
       }),
