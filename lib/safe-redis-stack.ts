@@ -5,16 +5,17 @@ import * as elasticache from "aws-cdk-lib/aws-elasticache";
 
 interface RedisStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
+  clusterName?: string;
 }
 
-export class RedisStack extends cdk.NestedStack {
+export class SafeRedisStack extends cdk.NestedStack {
   private _connections: ec2.Connections;
   private _cluster: elasticache.CfnCacheCluster;
 
   constructor(scope: Construct, id: string, props: RedisStackProps) {
     super(scope, id, props);
 
-    const { vpc } = props;
+    const { vpc, clusterName } = props;
 
     const redisSecurityGroup = new ec2.SecurityGroup(
       this,
@@ -63,6 +64,7 @@ export class RedisStack extends cdk.NestedStack {
       numCacheNodes: 1,
       cacheSubnetGroupName: redisSubnetGroup.ref,
       vpcSecurityGroupIds: [redisSecurityGroup.securityGroupId],
+      clusterName,
     });
 
     redisCluster.addDependency(redisSubnetGroup);

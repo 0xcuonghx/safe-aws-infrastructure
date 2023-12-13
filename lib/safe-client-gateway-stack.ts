@@ -2,14 +2,15 @@ import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as ecs from "aws-cdk-lib/aws-ecs";
-import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 
-import { RedisStack } from "./redis-stack";
+import { SafeRedisStack } from "./safe-redis-stack";
+import { SafeLoadBalancerStack } from "./safe-load-balancer-stack";
 
 interface SafeClientGatewayStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
+  loadBalancer: SafeLoadBalancerStack;
 }
 
 export class SafeClientGatewayStack extends cdk.NestedStack {
@@ -20,10 +21,11 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
   ) {
     super(scope, id, props);
 
-    const { vpc } = props;
+    const { vpc, loadBalancer } = props;
 
-    const redisCluster = new RedisStack(this, "RedisCluster", {
+    const redisCluster = new SafeRedisStack(this, "RedisCluster", {
       vpc,
+      clusterName: "SafeClientGatewayRedis",
     });
 
     const ecsCluster = new ecs.Cluster(this, "SafeCluster", {
@@ -58,24 +60,17 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
       ],
       image: ecs.ContainerImage.fromAsset("docker/safe-client-gateway"),
       environment: {
+        SAFE_CONFIG_BASE_URI: `http://${loadBalancer.safeCfgServiceLoadBalancer.loadBalancerDnsName}`,
         REDIS_HOST: redisCluster.cluster.attrRedisEndpointAddress,
         REDIS_PORT: redisCluster.cluster.attrRedisEndpointPort,
         LOG_LEVEL: "info",
       },
       secrets: {
-        SAFE_CONFIG_BASE_URI: ecs.Secret.fromSecretsManager(
-          secrets,
-          "SAFE_CONFIG_BASE_URI"
-        ),
-        EXCHANGE_API_BASE_URI: ecs.Secret.fromSecretsManager(
-          secrets,
-          "EXCHANGE_API_BASE_URI"
-        ),
         EXCHANGE_API_KEY: ecs.Secret.fromSecretsManager(
           secrets,
-          "EXCHANGE_API_KEY"
+          "CGW_EXCHANGE_API_KEY"
         ),
-        AUTH_TOKEN: ecs.Secret.fromSecretsManager(secrets, "AUTH_TOKEN"),
+        AUTH_TOKEN: ecs.Secret.fromSecretsManager(secrets, "CGW_AUTH_TOKEN"),
       },
     });
 
@@ -86,17 +81,7 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
     });
 
     // Setup LB and redirect traffic to web and static containers
-    const clientGatewayLoadBalancer = new elbv2.ApplicationLoadBalancer(
-      this,
-      "ClientGatewayApplicationLoadBalancer",
-      {
-        vpc,
-        internetFacing: true,
-      }
-    );
-    cdk.Tags.of(clientGatewayLoadBalancer).add("Name", "Safe Client Gateway");
-
-    const listener = clientGatewayLoadBalancer.addListener("Listener", {
+    const listener = loadBalancer.safeCgwLoadBalancer.addListener("Listener", {
       port: 80,
     });
 
