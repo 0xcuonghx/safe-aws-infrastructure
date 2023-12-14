@@ -1,6 +1,7 @@
 import * as cdk from "aws-cdk-lib";
 import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as logs from "aws-cdk-lib/aws-logs";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 
 import { Construct } from "constructs";
 import { SafeClientGatewayStack } from "./safe-client-gateway-stack";
@@ -12,6 +13,7 @@ export class SafeAwsInfrastructureStack extends cdk.Stack {
 
     const vpc = new ec2.Vpc(this, "SafeVPC");
     const logGroup = new logs.LogGroup(this, "LogGroup");
+    const secrets = new secretsmanager.Secret(this, "SafeSecrets");
 
     const safeLoadBalancer = new SafeLoadBalancerStack(this, "SafeALB", {
       vpc,
@@ -21,6 +23,7 @@ export class SafeAwsInfrastructureStack extends cdk.Stack {
       vpc,
       loadBalancer: safeLoadBalancer,
       logGroup,
+      secrets,
     });
   }
 }

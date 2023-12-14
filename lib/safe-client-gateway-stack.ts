@@ -12,6 +12,7 @@ interface SafeClientGatewayStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
   loadBalancer: SafeLoadBalancerStack;
   logGroup: logs.LogGroup;
+  secrets: secretsmanager.Secret;
 }
 
 export class SafeClientGatewayStack extends cdk.NestedStack {
@@ -22,7 +23,7 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
   ) {
     super(scope, id, props);
 
-    const { vpc, loadBalancer, logGroup } = props;
+    const { vpc, loadBalancer, logGroup, secrets } = props;
 
     const redisCluster = new SafeRedisStack(this, "RedisCluster", {
       vpc,
@@ -43,8 +44,6 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
         family: "SafeServices",
       }
     );
-
-    const secrets = new secretsmanager.Secret(this, "SafeSecrets");
 
     webTaskDefinition.addContainer("Web", {
       containerName: "web",
@@ -78,7 +77,11 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
     const service = new ecs.FargateService(this, "WebService", {
       cluster: ecsCluster,
       taskDefinition: webTaskDefinition,
+      circuitBreaker: {
+        rollback: true,
+      },
       enableExecuteCommand: true,
+      desiredCount: 1,
     });
 
     // Setup LB and redirect traffic to web and static containers
@@ -93,6 +96,9 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
           containerName: "web",
         }),
       ],
+      healthCheck: {
+        path: "/health",
+      },
     });
 
     service.connections.allowTo(
