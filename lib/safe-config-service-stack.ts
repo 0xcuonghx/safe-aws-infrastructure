@@ -90,9 +90,6 @@ export class SafeConfigServiceStack extends cdk.Stack {
       cluster: ecsCluster,
       taskDefinition: webTaskDefinition,
       desiredCount: 1,
-      circuitBreaker: {
-        rollback: true,
-      },
       enableExecuteCommand: true,
     });
 

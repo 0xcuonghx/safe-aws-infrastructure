@@ -19,24 +19,24 @@ export class SafeLoadBalancerStack extends cdk.NestedStack {
     // Config Service ALB
     const safeCfgServiceLoadBalancer = new elbv2.ApplicationLoadBalancer(
       this,
-      "SafeCfgServiceLoadBalancer",
+      "SafeCfgServiceALB",
       {
         vpc,
         internetFacing: true,
+        loadBalancerName: "SafeCfgServiceALB",
       }
     );
-    cdk.Tags.of(safeCfgServiceLoadBalancer).add("Name", "Safe Config Service");
 
     // Client Gateway ALB
     const safeCgwLoadBalancer = new elbv2.ApplicationLoadBalancer(
       this,
-      "ClientGatewayApplicationLoadBalancer",
+      "SafeCgwServiceALB",
       {
         vpc,
         internetFacing: true,
+        loadBalancerName: "SafeCgwServiceALB",
       }
     );
-    cdk.Tags.of(safeCgwLoadBalancer).add("Name", "Safe Client Gateway");
 
     this._safeCfgServiceLoadBalancer = safeCfgServiceLoadBalancer;
     this._safeCgwLoadBalancer = safeCgwLoadBalancer;

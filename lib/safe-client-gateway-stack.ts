@@ -27,12 +27,13 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
 
     const redisCluster = new SafeRedisStack(this, "RedisCluster", {
       vpc,
-      clusterName: "SafeClientGatewayRedis",
+      clusterName: "SafeCGWRedis",
     });
 
     const ecsCluster = new ecs.Cluster(this, "SafeCluster", {
       enableFargateCapacityProviders: true,
       vpc,
+      clusterName: "SafeCluster",
     });
 
     const webTaskDefinition = new ecs.FargateTaskDefinition(
@@ -50,7 +51,7 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
       workingDirectory: "/app",
       logging: new ecs.AwsLogDriver({
         logGroup,
-        streamPrefix: "Web",
+        streamPrefix: "SafeCGW",
         mode: ecs.AwsLogDriverMode.NON_BLOCKING,
       }),
       portMappings: [
@@ -77,11 +78,9 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
     const service = new ecs.FargateService(this, "WebService", {
       cluster: ecsCluster,
       taskDefinition: webTaskDefinition,
-      circuitBreaker: {
-        rollback: true,
-      },
       enableExecuteCommand: true,
       desiredCount: 1,
+      serviceName: "SafeCGWService",
     });
 
     // Setup LB and redirect traffic to web and static containers

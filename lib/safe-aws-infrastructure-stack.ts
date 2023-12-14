@@ -11,9 +11,22 @@ export class SafeAwsInfrastructureStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const vpc = new ec2.Vpc(this, "SafeVPC");
-    const logGroup = new logs.LogGroup(this, "LogGroup");
-    const secrets = new secretsmanager.Secret(this, "SafeSecrets");
+    const vpc = new ec2.Vpc(this, "SafeVPC", {
+      vpcName: "SafeVPC",
+    });
+    const logGroup = new logs.LogGroup(this, "LogGroup", {
+      logGroupName: "SafeLogGroup",
+    });
+    const secrets = new secretsmanager.Secret(this, "SafeSecrets", {
+      secretName: "SafeSecrets",
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({
+          CGW_EXCHANGE_API_KEY: "",
+          CGW_AUTH_TOKEN: "",
+        }),
+        generateStringKey: "secret",
+      },
+    });
 
     const safeLoadBalancer = new SafeLoadBalancerStack(this, "SafeALB", {
       vpc,
@@ -25,5 +38,7 @@ export class SafeAwsInfrastructureStack extends cdk.Stack {
       logGroup,
       secrets,
     });
+
+    safeCGW.node.addDependency(safeLoadBalancer);
   }
 }
