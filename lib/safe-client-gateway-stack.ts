@@ -71,6 +71,26 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
           "CGW_EXCHANGE_API_KEY"
         ),
         AUTH_TOKEN: ecs.Secret.fromSecretsManager(secrets, "CGW_AUTH_TOKEN"),
+        PRICES_PROVIDER_API_KEY: ecs.Secret.fromSecretsManager(
+          secrets,
+          "CGW_PRICES_PROVIDER_API_KEY"
+        ),
+        ALERTS_PROVIDER_SIGNING_KEY: ecs.Secret.fromSecretsManager(
+          secrets,
+          "CGW_ALERTS_PROVIDER_SIGNING_KEY"
+        ),
+        ALERTS_PROVIDER_API_KEY: ecs.Secret.fromSecretsManager(
+          secrets,
+          "CGW_ALERTS_PROVIDER_API_KEY"
+        ),
+        ALERTS_PROVIDER_ACCOUNT: ecs.Secret.fromSecretsManager(
+          secrets,
+          "CGW_ALERTS_PROVIDER_ACCOUNT"
+        ),
+        ALERTS_PROVIDER_PROJECT: ecs.Secret.fromSecretsManager(
+          secrets,
+          "CGW_ALERTS_PROVIDER_PROJECT"
+        ),
       },
     });
 

@@ -26,6 +26,11 @@ export class SafeAwsInfrastructureStack extends cdk.Stack {
           // CGW
           CGW_EXCHANGE_API_KEY: "",
           CGW_AUTH_TOKEN: "",
+          CGW_PRICES_PROVIDER_API_KEY: "",
+          CGW_ALERTS_PROVIDER_SIGNING_KEY: "",
+          CGW_ALERTS_PROVIDER_API_KEY: "",
+          CGW_ALERTS_PROVIDER_ACCOUNT: "",
+          CGW_ALERTS_PROVIDER_PROJECT: "",
           // CFG
           CFG_SECRET_KEY: "",
         }),
