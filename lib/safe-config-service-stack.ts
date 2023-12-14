@@ -60,8 +60,45 @@ export class SafeConfigServiceStack extends cdk.Stack {
         },
       ],
       image: ecs.ContainerImage.fromAsset("docker/safe-config-service"),
-      environment: {},
-      secrets: {},
+      environment: {
+        PYTHONDONTWRITEBYTECODE: "true",
+        DEBUG: "false",
+        ROOT_LOG_LEVEL: "info",
+        DJANGO_ALLOWED_HOSTS: "*",
+        GUNICORN_BIND_PORT: "8001",
+        DOCKER_NGINX_VOLUME_ROOT: "/nginx",
+        GUNICORN_BIND_SOCKET: "unix:/gunicorn.socket",
+        NGINX_ENVSUBST_OUTPUT_DIR: "/etc/nginx/",
+        POSTGRES_NAME: "postgres",
+        DOCKER_WEB_VOLUME: ".:/app",
+        GUNICORN_WEB_RELOAD: "false",
+        DEFAULT_FILE_STORAGE: "django.core.files.storage.FileSystemStorage",
+        CGW_URL: loadBalancer.safeCgwLoadBalancer.loadBalancerDnsName,
+        // CSRF_TRUSTED_ORIGINS: "",
+      },
+      secrets: {
+        SECRET_KEY: ecs.Secret.fromSecretsManager(secrets, "CFG_SECRET_KEY"),
+        POSTGRES_USER: ecs.Secret.fromSecretsManager(
+          database.secret as secretsmanager.ISecret,
+          "username"
+        ),
+        POSTGRES_PASSWORD: ecs.Secret.fromSecretsManager(
+          database.secret as secretsmanager.ISecret,
+          "password"
+        ),
+        POSTGRES_HOST: ecs.Secret.fromSecretsManager(
+          database.secret as secretsmanager.ISecret,
+          "host"
+        ),
+        POSTGRES_PORT: ecs.Secret.fromSecretsManager(
+          database.secret as secretsmanager.ISecret,
+          "port"
+        ),
+        CGW_FLUSH_TOKEN: ecs.Secret.fromSecretsManager(
+          secrets,
+          "CGW_AUTH_TOKEN"
+        ),
+      },
     });
 
     webContainer.addMountPoints({

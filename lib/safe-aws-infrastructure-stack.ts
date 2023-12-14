@@ -21,8 +21,11 @@ export class SafeAwsInfrastructureStack extends cdk.Stack {
       secretName: "SafeSecrets",
       generateSecretString: {
         secretStringTemplate: JSON.stringify({
+          // CGW
           CGW_EXCHANGE_API_KEY: "",
           CGW_AUTH_TOKEN: "",
+          // CFG
+          CFG_SECRET_KEY: "",
         }),
         generateStringKey: "secret",
       },
