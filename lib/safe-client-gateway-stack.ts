@@ -48,7 +48,6 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
 
     webTaskDefinition.addContainer("Web", {
       containerName: "web",
-      workingDirectory: "/app",
       logging: new ecs.AwsLogDriver({
         logGroup,
         streamPrefix: "SafeCGW",

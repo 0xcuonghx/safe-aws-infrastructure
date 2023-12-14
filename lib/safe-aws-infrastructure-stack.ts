@@ -16,6 +16,8 @@ export class SafeAwsInfrastructureStack extends cdk.Stack {
     });
     const logGroup = new logs.LogGroup(this, "LogGroup", {
       logGroupName: "SafeLogGroup",
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      retention: logs.RetentionDays.ONE_MONTH,
     });
     const secrets = new secretsmanager.Secret(this, "SafeSecrets", {
       secretName: "SafeSecrets",
