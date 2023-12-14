@@ -25,32 +25,32 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
 
     const { vpc, loadBalancer, logGroup, secrets } = props;
 
-    const redisCluster = new SafeRedisStack(this, "RedisCluster", {
+    const redis = new SafeRedisStack(this, "SafeCGWRedis", {
       vpc,
       clusterName: "SafeCGWRedis",
     });
 
-    const ecsCluster = new ecs.Cluster(this, "SafeCluster", {
+    const ecsCluster = new ecs.Cluster(this, "SafeCGWCluster", {
       enableFargateCapacityProviders: true,
       vpc,
-      clusterName: "SafeCluster",
+      clusterName: "SafeCGWCluster",
     });
 
     const webTaskDefinition = new ecs.FargateTaskDefinition(
       this,
-      "SafeCGWServiceWeb",
+      "SafeCGWTaskDefinition",
       {
         cpu: 512,
         memoryLimitMiB: 1024,
-        family: "SafeServices",
+        family: "SafeCGWTaskDefinition",
       }
     );
 
-    webTaskDefinition.addContainer("Web", {
-      containerName: "web",
+    webTaskDefinition.addContainer("SafeCGWWeb", {
+      containerName: "SafeCGWWeb",
       logging: new ecs.AwsLogDriver({
         logGroup,
-        streamPrefix: "SafeCGW",
+        streamPrefix: "SafeCGWWeb",
         mode: ecs.AwsLogDriverMode.NON_BLOCKING,
       }),
       portMappings: [
@@ -61,8 +61,8 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
       image: ecs.ContainerImage.fromAsset("docker/safe-client-gateway"),
       environment: {
         SAFE_CONFIG_BASE_URI: `http://${loadBalancer.safeCfgServiceLoadBalancer.loadBalancerDnsName}`,
-        REDIS_HOST: redisCluster.cluster.attrRedisEndpointAddress,
-        REDIS_PORT: redisCluster.cluster.attrRedisEndpointPort,
+        REDIS_HOST: redis.cluster.attrRedisEndpointAddress,
+        REDIS_PORT: redis.cluster.attrRedisEndpointPort,
         LOG_LEVEL: "info",
       },
       secrets: {
@@ -94,27 +94,27 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
       },
     });
 
-    const service = new ecs.FargateService(this, "WebService", {
+    const service = new ecs.FargateService(this, "SafeCGWWebService", {
       cluster: ecsCluster,
       taskDefinition: webTaskDefinition,
       enableExecuteCommand: true,
       desiredCount: 1,
-      serviceName: "SafeCGWService",
+      serviceName: "SafeCGWWebService",
     });
 
     // Setup LB and redirect traffic to web and static containers
     const listener = loadBalancer.safeCgwServiceLoadBalancer.addListener(
-      "Listener",
+      "SafeCGWListener",
       {
         port: 80,
       }
     );
 
-    listener.addTargets("WebTarget", {
+    listener.addTargets("SafeCGWTarget", {
       port: 80,
       targets: [
         service.loadBalancerTarget({
-          containerName: "web",
+          containerName: "SafeCGWWeb",
         }),
       ],
       healthCheck: {
@@ -124,9 +124,9 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
 
     [service].forEach((service) => {
       service.connections.allowTo(
-        redisCluster.connections,
+        redis.connections,
         ec2.Port.tcp(6379),
-        "Redis"
+        "SafeCGWRedis"
       );
     });
   }
