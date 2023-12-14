@@ -84,9 +84,12 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
     });
 
     // Setup LB and redirect traffic to web and static containers
-    const listener = loadBalancer.safeCgwLoadBalancer.addListener("Listener", {
-      port: 80,
-    });
+    const listener = loadBalancer.safeCgwServiceLoadBalancer.addListener(
+      "Listener",
+      {
+        port: 80,
+      }
+    );
 
     listener.addTargets("WebTarget", {
       port: 80,
@@ -100,10 +103,12 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
       },
     });
 
-    service.connections.allowTo(
-      redisCluster.connections,
-      ec2.Port.tcp(6379),
-      "Redis"
-    );
+    [service].forEach((service) => {
+      service.connections.allowTo(
+        redisCluster.connections,
+        ec2.Port.tcp(6379),
+        "Redis"
+      );
+    });
   }
 }

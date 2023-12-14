@@ -73,7 +73,7 @@ export class SafeConfigServiceStack extends cdk.Stack {
         DOCKER_WEB_VOLUME: ".:/app",
         GUNICORN_WEB_RELOAD: "false",
         DEFAULT_FILE_STORAGE: "django.core.files.storage.FileSystemStorage",
-        CGW_URL: loadBalancer.safeCgwLoadBalancer.loadBalancerDnsName,
+        CGW_URL: loadBalancer.safeCgwServiceLoadBalancer.loadBalancerDnsName,
         // CSRF_TRUSTED_ORIGINS: "",
       },
       secrets: {
@@ -120,7 +120,7 @@ export class SafeConfigServiceStack extends cdk.Stack {
     nginxContainer.addMountPoints({
       sourceVolume: "nginx_volume",
       containerPath: "/usr/share/nginx/html/static",
-      readOnly: false,
+      readOnly: true,
     });
 
     const webService = new ecs.FargateService(this, "WebService", {
@@ -153,6 +153,8 @@ export class SafeConfigServiceStack extends cdk.Stack {
       targets: [webService.loadBalancerTarget({ containerName: "web" })],
     });
 
-    webService.connections.allowTo(database, ec2.Port.tcp(5432), "RDS");
+    [webService].forEach((service) => {
+      service.connections.allowTo(database, ec2.Port.tcp(5432), "RDS");
+    });
   }
 }

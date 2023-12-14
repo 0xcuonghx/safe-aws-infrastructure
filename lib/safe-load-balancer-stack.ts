@@ -10,7 +10,8 @@ interface SafeLoadBalancerStackProps extends cdk.StackProps {
 
 export class SafeLoadBalancerStack extends cdk.NestedStack {
   private _safeCfgServiceLoadBalancer: elbv2.ApplicationLoadBalancer;
-  private _safeCgwLoadBalancer: elbv2.ApplicationLoadBalancer;
+  private _safeCgwServiceLoadBalancer: elbv2.ApplicationLoadBalancer;
+  private _safeTransactionServiceLoadBalancer: elbv2.ApplicationLoadBalancer;
 
   constructor(scope: Construct, id: string, props: SafeLoadBalancerStackProps) {
     super(scope, id, props);
@@ -28,7 +29,7 @@ export class SafeLoadBalancerStack extends cdk.NestedStack {
     );
 
     // Client Gateway ALB
-    const safeCgwLoadBalancer = new elbv2.ApplicationLoadBalancer(
+    const safeCgwServiceLoadBalancer = new elbv2.ApplicationLoadBalancer(
       this,
       "SafeCgwServiceALB",
       {
@@ -38,15 +39,29 @@ export class SafeLoadBalancerStack extends cdk.NestedStack {
       }
     );
 
+    // Transaction Service ALB
+    const safeTransactionServiceLoadBalancer =
+      new elbv2.ApplicationLoadBalancer(this, "safeTransactionServiceALB", {
+        vpc,
+        internetFacing: true,
+        loadBalancerName: "safeTransactionServiceALB",
+      });
+
     this._safeCfgServiceLoadBalancer = safeCfgServiceLoadBalancer;
-    this._safeCgwLoadBalancer = safeCgwLoadBalancer;
+    this._safeCgwServiceLoadBalancer = safeCgwServiceLoadBalancer;
+    this._safeTransactionServiceLoadBalancer =
+      safeTransactionServiceLoadBalancer;
   }
 
   public get safeCfgServiceLoadBalancer(): elbv2.ApplicationLoadBalancer {
     return this._safeCfgServiceLoadBalancer;
   }
 
-  public get safeCgwLoadBalancer(): elbv2.ApplicationLoadBalancer {
-    return this._safeCgwLoadBalancer;
+  public get safeCgwServiceLoadBalancer(): elbv2.ApplicationLoadBalancer {
+    return this._safeCgwServiceLoadBalancer;
+  }
+
+  public get safeTransactionServiceLoadBalancer(): elbv2.ApplicationLoadBalancer {
+    return this._safeTransactionServiceLoadBalancer;
   }
 }
