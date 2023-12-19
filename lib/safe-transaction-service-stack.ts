@@ -27,21 +27,25 @@ export class SafeTransactionServiceStack extends cdk.Stack {
 
     const { vpc, logGroup, loadBalancer } = props;
 
-    const redisCluster = new SafeRedisStack(this, "RedisCluster", {
-      vpc,
-      clusterName: "safeTransactionServiceRedis",
-    });
-
-    const { database } = new SafeDatabaseStack(
+    const redisCluster = new SafeRedisStack(
       this,
-      "TransactionServiceDatabase",
+      "safeTransactionServiceRedis",
       {
         vpc,
-        instanceIdentifier: "TransactionServiceDatabase",
+        clusterName: "safeTransactionServiceRedis",
       }
     );
 
-    const ecsCluster = new ecs.Cluster(this, "SafeCluster", {
+    const { database } = new SafeDatabaseStack(
+      this,
+      "SafeTransactionServiceDatabase",
+      {
+        vpc,
+        instanceIdentifier: "SafeTransactionServiceDatabase",
+      }
+    );
+
+    const ecsCluster = new ecs.Cluster(this, "SafeTransactionServiceCluster", {
       enableFargateCapacityProviders: true,
       vpc,
     });
