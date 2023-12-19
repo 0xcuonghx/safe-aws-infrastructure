@@ -35,6 +35,7 @@ export class SafeConfigServiceStack extends cdk.NestedStack {
     const cluster = new ecs.Cluster(this, "safe-cfg-cluster", {
       enableFargateCapacityProviders: true,
       vpc,
+      clusterName: "safe-cfg-cluster",
     });
 
     const task = new ecs.FargateTaskDefinition(
@@ -63,20 +64,20 @@ export class SafeConfigServiceStack extends cdk.NestedStack {
       image: ecs.ContainerImage.fromAsset("docker/safe-config-service"),
       environment: {
         PYTHONDONTWRITEBYTECODE: "true",
-        DEBUG: "false",
-        ROOT_LOG_LEVEL: "INFO",
+        DEBUG: "true",
+        ROOT_LOG_LEVEL: "DEBUG",
         DJANGO_ALLOWED_HOSTS: "*",
         GUNICORN_BIND_PORT: "8001",
         DOCKER_NGINX_VOLUME_ROOT: "/nginx",
-        GUNICORN_BIND_SOCKET:
-          "unix:${DOCKER_NGINX_VOLUME_ROOT}/gunicorn.socket",
+        GUNICORN_BIND_SOCKET: "unix:/nginx/gunicorn.socket",
         NGINX_ENVSUBST_OUTPUT_DIR: "/etc/nginx/",
         POSTGRES_NAME: "postgres",
         DOCKER_WEB_VOLUME: ".:/app",
         GUNICORN_WEB_RELOAD: "false",
         DEFAULT_FILE_STORAGE: "django.core.files.storage.FileSystemStorage",
+        DJANGO_OTP_ADMIN: "false",
         CGW_URL: `http://${safeCgwALB.loadBalancerDnsName}`,
-        // CSRF_TRUSTED_ORIGINS: "",
+        CSRF_TRUSTED_ORIGINS: `http://${safeCfgALB.loadBalancerDnsName}`,
       },
       secrets: {
         SECRET_KEY: ecs.Secret.fromSecretsManager(secrets, "CFG_SECRET_KEY"),
@@ -100,11 +101,23 @@ export class SafeConfigServiceStack extends cdk.NestedStack {
           secrets,
           "CGW_AUTH_TOKEN"
         ),
+        DJANGO_SUPERUSER_PASSWORD: ecs.Secret.fromSecretsManager(
+          secrets,
+          "CFG_DJANGO_SUPERUSER_PASSWORD"
+        ),
+        DJANGO_SUPERUSER_USERNAME: ecs.Secret.fromSecretsManager(
+          secrets,
+          "CFG_DJANGO_SUPERUSER_USERNAME"
+        ),
+        DJANGO_SUPERUSER_EMAIL: ecs.Secret.fromSecretsManager(
+          secrets,
+          "CFG_DJANGO_SUPERUSER_EMAIL"
+        ),
       },
     });
 
     webContainer.addMountPoints({
-      sourceVolume: "nginx-volume",
+      sourceVolume: "nginx-shared",
       containerPath: "/app/staticfiles",
       readOnly: false,
     });
@@ -120,7 +133,7 @@ export class SafeConfigServiceStack extends cdk.NestedStack {
     });
 
     nginxContainer.addMountPoints({
-      sourceVolume: "nginx-volume",
+      sourceVolume: "nginx-shared",
       containerPath: "/usr/share/nginx/html/static",
       readOnly: true,
     });

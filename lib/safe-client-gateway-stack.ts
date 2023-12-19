@@ -63,33 +63,17 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
         REDIS_PORT: redis.cluster.attrRedisEndpointPort,
         APPLICATION_PORT: "3000",
         SAFE_CONFIG_BASE_URI: `http://${safeCfgALB.loadBalancerDnsName}`,
+        ALERTS_PROVIDER_SIGNING_KEY: "",
+        ALERTS_PROVIDER_API_KEY: "",
+        ALERTS_PROVIDER_ACCOUNT: "",
+        ALERTS_PROVIDER_PROJECT: "",
       },
       secrets: {
-        PRICES_PROVIDER_API_KEY: ecs.Secret.fromSecretsManager(
-          secrets,
-          "CGW_PRICES_PROVIDER_API_KEY"
-        ),
         EXCHANGE_API_KEY: ecs.Secret.fromSecretsManager(
           secrets,
           "CGW_EXCHANGE_API_KEY"
         ),
         AUTH_TOKEN: ecs.Secret.fromSecretsManager(secrets, "CGW_AUTH_TOKEN"),
-        ALERTS_PROVIDER_SIGNING_KEY: ecs.Secret.fromSecretsManager(
-          secrets,
-          "CGW_ALERTS_PROVIDER_SIGNING_KEY"
-        ),
-        ALERTS_PROVIDER_API_KEY: ecs.Secret.fromSecretsManager(
-          secrets,
-          "CGW_ALERTS_PROVIDER_API_KEY"
-        ),
-        ALERTS_PROVIDER_ACCOUNT: ecs.Secret.fromSecretsManager(
-          secrets,
-          "CGW_ALERTS_PROVIDER_ACCOUNT"
-        ),
-        ALERTS_PROVIDER_PROJECT: ecs.Secret.fromSecretsManager(
-          secrets,
-          "CGW_ALERTS_PROVIDER_PROJECT"
-        ),
       },
     });
 
@@ -113,9 +97,6 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
           containerName: container.containerName,
         }),
       ],
-      healthCheck: {
-        path: "/health",
-      },
     });
 
     [web].forEach((service) => {

@@ -31,6 +31,7 @@ export class SafeDatabaseStack extends cdk.NestedStack {
       credentials: rds.Credentials.fromGeneratedSecret("postgres"),
       instanceIdentifier,
       storageType: rds.StorageType.GP2,
+      databaseName: "postgres",
     });
 
     this._database = database;

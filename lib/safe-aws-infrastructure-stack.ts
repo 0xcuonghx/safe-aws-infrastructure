@@ -27,15 +27,13 @@ export class SafeAwsInfrastructureStack extends cdk.Stack {
       generateSecretString: {
         secretStringTemplate: JSON.stringify({
           // CGW
-          CGW_PRICES_PROVIDER_API_KEY: "",
           CGW_EXCHANGE_API_KEY: "",
           CGW_AUTH_TOKEN: "",
-          CGW_ALERTS_PROVIDER_SIGNING_KEY: "",
-          CGW_ALERTS_PROVIDER_API_KEY: "",
-          CGW_ALERTS_PROVIDER_ACCOUNT: "",
-          CGW_ALERTS_PROVIDER_PROJECT: "",
           // CFG
           CFG_SECRET_KEY: "",
+          CFG_DJANGO_SUPERUSER_PASSWORD: "",
+          CFG_DJANGO_SUPERUSER_USERNAME: "",
+          CFG_DJANGO_SUPERUSER_EMAIL: "",
         }),
         generateStringKey: "secret",
       },
@@ -61,7 +59,7 @@ export class SafeAwsInfrastructureStack extends cdk.Stack {
       secrets,
     });
 
-    const safeCfg = new SafeConfigServiceStack(this, "safe-cfg", {
+    const safeCFG = new SafeConfigServiceStack(this, "safe-cfg", {
       vpc,
       logGroup,
       safeCgwALB,
