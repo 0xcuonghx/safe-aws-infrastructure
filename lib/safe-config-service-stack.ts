@@ -163,6 +163,7 @@ export class SafeConfigServiceStack extends cdk.NestedStack {
       healthCheck: {
         path: "/static/drf-yasg/style.css",
       },
+      targetGroupName: "safe-cfg-staticfiles-target",
     });
 
     listener.addTargets("safe-cfg-web-target", {
@@ -170,6 +171,7 @@ export class SafeConfigServiceStack extends cdk.NestedStack {
       targets: [
         web.loadBalancerTarget({ containerName: webContainer.containerName }),
       ],
+      targetGroupName: "safe-cfg-web-target",
     });
 
     [web].forEach((service) => {

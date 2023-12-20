@@ -28,7 +28,9 @@ export class SafeDatabaseStack extends cdk.NestedStack {
       vpcSubnets: {
         subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
       },
-      credentials: rds.Credentials.fromGeneratedSecret("postgres"),
+      credentials: rds.Credentials.fromGeneratedSecret("postgres", {
+        secretName: `${instanceIdentifier}-secret`,
+      }),
       instanceIdentifier,
       storageType: rds.StorageType.GP2,
       databaseName: "postgres",

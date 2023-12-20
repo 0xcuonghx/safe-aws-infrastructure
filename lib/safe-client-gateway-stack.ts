@@ -97,6 +97,10 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
           containerName: container.containerName,
         }),
       ],
+      targetGroupName: "safe-cgw-target",
+      healthCheck: {
+        path: "/about",
+      },
     });
 
     [web].forEach((service) => {
