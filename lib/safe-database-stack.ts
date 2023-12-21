@@ -10,13 +10,13 @@ interface SafeDatabaseStackProps extends cdk.StackProps {
 }
 
 export class SafeDatabaseStack extends cdk.NestedStack {
-  private _database: rds.DatabaseInstance;
+  private _cluster: rds.DatabaseInstance;
 
   constructor(scope: Construct, id: string, props: SafeDatabaseStackProps) {
     super(scope, id, props);
     const { vpc, instanceIdentifier } = props;
 
-    const database = new rds.DatabaseInstance(this, "SafeDatabase", {
+    this._cluster = new rds.DatabaseInstance(this, "SafeDatabase", {
       engine: rds.DatabaseInstanceEngine.postgres({
         version: rds.PostgresEngineVersion.VER_15_4,
       }),
@@ -35,11 +35,17 @@ export class SafeDatabaseStack extends cdk.NestedStack {
       storageType: rds.StorageType.GP2,
       databaseName: "postgres",
     });
-
-    this._database = database;
   }
 
-  public get database(): rds.DatabaseInstance {
-    return this._database;
+  public get cluster(): rds.DatabaseInstance {
+    return this._cluster;
+  }
+
+  public get uri(): string {
+    const dbSecret = this._cluster.secret!;
+    const dbUsername = dbSecret.secretValueFromJson("username").unsafeUnwrap();
+    const dbPassword = dbSecret.secretValueFromJson("password").unsafeUnwrap();
+
+    return `psql://${dbUsername}:${dbPassword}@${this._cluster.dbInstanceEndpointAddress}:${this._cluster.dbInstanceEndpointPort}/postgres`;
   }
 }

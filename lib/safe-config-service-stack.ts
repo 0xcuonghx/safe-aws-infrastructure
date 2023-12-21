@@ -13,7 +13,7 @@ interface SafeConfigServiceStackProps extends cdk.StackProps {
   safeCgwALB: elbv2.ApplicationLoadBalancer;
   safeCfgALB: elbv2.ApplicationLoadBalancer;
   logGroup: logs.LogGroup;
-  secrets: secretsmanager.Secret;
+  cgwSecrets: secretsmanager.Secret;
 }
 
 export class SafeConfigServiceStack extends cdk.NestedStack {
@@ -24,9 +24,21 @@ export class SafeConfigServiceStack extends cdk.NestedStack {
   ) {
     super(scope, id, props);
 
-    const { vpc, logGroup, secrets, safeCfgALB, safeCgwALB } = props;
+    const { vpc, logGroup, safeCfgALB, safeCgwALB, cgwSecrets } = props;
 
-    const { database } = new SafeDatabaseStack(this, "safe-cfg-database", {
+    const secrets = new secretsmanager.Secret(this, "safe-secrets", {
+      secretName: "safe-cfg-secret",
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({
+          CFG_DJANGO_SUPERUSER_PASSWORD: "admin",
+          CFG_DJANGO_SUPERUSER_USERNAME: "root",
+          CFG_DJANGO_SUPERUSER_EMAIL: "test@example.com",
+        }),
+        generateStringKey: "CFG_SECRET_KEY",
+      },
+    });
+
+    const database = new SafeDatabaseStack(this, "safe-cfg-database", {
       vpc,
       instanceIdentifier: "safe-cfg-database",
     });
@@ -81,24 +93,8 @@ export class SafeConfigServiceStack extends cdk.NestedStack {
       },
       secrets: {
         SECRET_KEY: ecs.Secret.fromSecretsManager(secrets, "CFG_SECRET_KEY"),
-        POSTGRES_USER: ecs.Secret.fromSecretsManager(
-          database.secret as secretsmanager.ISecret,
-          "username"
-        ),
-        POSTGRES_PASSWORD: ecs.Secret.fromSecretsManager(
-          database.secret as secretsmanager.ISecret,
-          "password"
-        ),
-        POSTGRES_HOST: ecs.Secret.fromSecretsManager(
-          database.secret as secretsmanager.ISecret,
-          "host"
-        ),
-        POSTGRES_PORT: ecs.Secret.fromSecretsManager(
-          database.secret as secretsmanager.ISecret,
-          "port"
-        ),
         CGW_FLUSH_TOKEN: ecs.Secret.fromSecretsManager(
-          secrets,
+          cgwSecrets,
           "CGW_AUTH_TOKEN"
         ),
         DJANGO_SUPERUSER_PASSWORD: ecs.Secret.fromSecretsManager(
@@ -112,6 +108,22 @@ export class SafeConfigServiceStack extends cdk.NestedStack {
         DJANGO_SUPERUSER_EMAIL: ecs.Secret.fromSecretsManager(
           secrets,
           "CFG_DJANGO_SUPERUSER_EMAIL"
+        ),
+        POSTGRES_USER: ecs.Secret.fromSecretsManager(
+          database.cluster.secret as secretsmanager.ISecret,
+          "username"
+        ),
+        POSTGRES_PASSWORD: ecs.Secret.fromSecretsManager(
+          database.cluster.secret as secretsmanager.ISecret,
+          "password"
+        ),
+        POSTGRES_HOST: ecs.Secret.fromSecretsManager(
+          database.cluster.secret as secretsmanager.ISecret,
+          "host"
+        ),
+        POSTGRES_PORT: ecs.Secret.fromSecretsManager(
+          database.cluster.secret as secretsmanager.ISecret,
+          "port"
         ),
       },
     });
@@ -176,7 +188,7 @@ export class SafeConfigServiceStack extends cdk.NestedStack {
 
     [web].forEach((service) => {
       service.connections.allowTo(
-        database,
+        database.cluster,
         ec2.Port.tcp(5432),
         "safe-cfg-database"
       );

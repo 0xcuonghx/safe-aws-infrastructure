@@ -8,14 +8,15 @@ import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 import { Construct } from "constructs";
 import { SafeDatabaseStack } from "./safe-database-stack";
 import { SafeRedisStack } from "./safe-redis-stack";
+import { SafeRabbitMQStack } from "./safe-rabbit-mq-stack";
 
 interface SafeTransactionServiceStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
   logGroup: logs.LogGroup;
-  secrets: secretsmanager.Secret;
+  safeTxsALB: elbv2.ApplicationLoadBalancer;
 }
 
-export class SafeTransactionServiceStack extends cdk.Stack {
+export class SafeTransactionServiceStack extends cdk.NestedStack {
   constructor(
     scope: Construct,
     id: string,
@@ -23,200 +24,293 @@ export class SafeTransactionServiceStack extends cdk.Stack {
   ) {
     super(scope, id, props);
 
-    const { vpc, logGroup, secrets } = props;
+    const { vpc, logGroup, safeTxsALB } = props;
+
+    const broker = new SafeRabbitMQStack(this, "safe-txs-rabbit-mq", {
+      vpc,
+      brokerName: "safe-txs-rabbit-mq",
+    });
 
     const redis = new SafeRedisStack(this, "safe-txs-redis", {
       vpc,
       clusterName: "safe-txs-redis",
     });
 
-    const { database } = new SafeDatabaseStack(this, "safe-txs-database", {
+    const database = new SafeDatabaseStack(this, "safe-txs-database", {
       vpc,
       instanceIdentifier: "safe-txs-database",
     });
 
-    // const ecsCluster = new ecs.Cluster(this, "safe-txs-cluster", {
-    //   enableFargateCapacityProviders: true,
-    //   vpc,
-    //   clusterName: "safe-txs-cluster",
-    // });
+    const ecsCluster = new ecs.Cluster(this, "safe-txs-cluster", {
+      enableFargateCapacityProviders: true,
+      vpc,
+      clusterName: "safe-txs-cluster",
+    });
 
-    // // Web
+    const task = new ecs.FargateTaskDefinition(
+      this,
+      "safe-txs-task-definition",
+      {
+        cpu: 512,
+        memoryLimitMiB: 1024,
+        family: "safe-txs",
+        volumes: [{ name: "nginx-shared" }],
+      }
+    );
 
-    // const task = new ecs.FargateTaskDefinition(
-    //   this,
-    //   "safe-txs-task-definition",
-    //   {
-    //     cpu: 512,
-    //     memoryLimitMiB: 1024,
-    //     family: "safe-txs-task-definition",
-    //     volumes: [{ name: "nginx-shared" }],
-    //   }
-    // );
+    const safeTxsSecretKey = new secretsmanager.Secret(
+      this,
+      "safe-rabbit-mq-secrets",
+      {
+        secretName: `safe-txs-secret-key`,
+        generateSecretString: {
+          secretStringTemplate: JSON.stringify({}),
+          generateStringKey: "TXS_DJANGO_SECRET_KEY",
+        },
+      }
+    );
 
-    // const webContainer = task.addContainer("safe-txs-web", {
-    //   containerName: "safe-txs-web",
-    //   workingDirectory: "/app",
-    //   command: ["docker/web/run_web.sh"],
-    //   logging: new ecs.AwsLogDriver({
-    //     logGroup,
-    //     streamPrefix: "safe-txs-web",
-    //     mode: ecs.AwsLogDriverMode.NON_BLOCKING,
-    //   }),
-    //   portMappings: [
-    //     {
-    //       containerPort: 8888,
-    //     },
-    //   ],
-    //   image: ecs.ContainerImage.fromAsset("docker/safe-transaction-service"),
-    //   environment: {
-    //     PYTHONPATH: "/app/",
-    //     DJANGO_SETTINGS_MODULE: "config.settings.production",
-    //     DEBUG: "0",
-    //     // DATABASE_URL: `psql://postgres:postgres@txs-db:5432/postgres`,
-    //     ETH_L2_NETWORK: "1",
-    //     REDIS_URL: `redis://${redis.cluster.attrConfigurationEndpointAddress}:${redis.cluster.attrConfigurationEndpointPort}`,
-    //     // CELERY_BROKER_URL: amqp://guest:guest@txs-rabbitmq/
-    //     DJANGO_ALLOWED_HOSTS: "*",
-    //     FORCE_SCRIPT_NAME: "/txs/",
-    //     // CSRF_TRUSTED_ORIGINS="http://localhost:8000"
-    //     // EVENTS_QUEUE_URL=amqp://general-rabbitmq:5672
-    //     EVENTS_QUEUE_ASYNC_CONNECTION: "True",
-    //     EVENTS_QUEUE_EXCHANGE_NAME: "safe-transaction-service-events",
-    //   },
-    //   secrets: {
-    //     DJANGO_SECRET_KEY: ecs.Secret.fromSecretsManager(
-    //       secrets,
-    //       "TXS_DJANGO_SECRET_KEY"
-    //     ),
-    //   },
-    // });
+    const environment = {
+      PYTHONPATH: "/app/",
+      DJANGO_SETTINGS_MODULE: "config.settings.production",
+      DEBUG: "0",
+      DATABASE_URL: database.uri,
+      ETHEREUM_NODE_URL: "https://rpc-1.japanopenchain.org:8545	",
+      ETH_L2_NETWORK: "1",
+      REDIS_URL: `redis://${redis.cluster.attrRedisEndpointAddress}:${redis.cluster.attrRedisEndpointPort}`,
+      CELERY_BROKER_URL: broker.uri,
+      DJANGO_ALLOWED_HOSTS: "*",
+      FORCE_SCRIPT_NAME: "/txs/",
+      CSRF_TRUSTED_ORIGINS: `http://${safeTxsALB.loadBalancerDnsName}`,
+      // EVENTS_QUEUE_URL=amqp://general-rabbitmq:5672
+      EVENTS_QUEUE_ASYNC_CONNECTION: "True",
+      EVENTS_QUEUE_EXCHANGE_NAME: "safe-transaction-service-events",
+    };
 
-    // webContainer.addMountPoints({
-    //   sourceVolume: "nginx-shared",
-    //   containerPath: "/app/staticfiles",
-    //   readOnly: false,
-    // });
+    const webContainer = task.addContainer("safe-txs-web", {
+      containerName: "safe-txs-web",
+      workingDirectory: "/app",
+      command: ["docker/web/run_web.sh"],
+      logging: new ecs.AwsLogDriver({
+        logGroup,
+        streamPrefix: "safe-txs-web",
+        mode: ecs.AwsLogDriverMode.NON_BLOCKING,
+      }),
+      portMappings: [
+        {
+          containerPort: 8888,
+        },
+      ],
+      image: ecs.ContainerImage.fromAsset("docker/safe-transaction-service"),
+      environment,
+      secrets: {
+        DJANGO_SECRET_KEY: ecs.Secret.fromSecretsManager(
+          safeTxsSecretKey,
+          "TXS_DJANGO_SECRET_KEY"
+        ),
+      },
+    });
 
-    // const nginxContainer = task.addContainer("safe-txs-static-files", {
-    //   containerName: "safe-txs-staticfiles",
-    //   image: ecs.ContainerImage.fromRegistry("nginx:latest"),
-    //   portMappings: [
-    //     {
-    //       containerPort: 80,
-    //     },
-    //   ],
-    // });
+    webContainer.addMountPoints({
+      sourceVolume: "nginx-shared",
+      containerPath: "/app/staticfiles",
+      readOnly: false,
+    });
 
-    // nginxContainer.addMountPoints({
-    //   sourceVolume: "nginx-shared",
-    //   containerPath: "/usr/share/nginx/html/static",
-    //   readOnly: true,
-    // });
+    const nginxContainer = task.addContainer("safe-txs-static-files", {
+      containerName: "safe-txs-staticfiles",
+      image: ecs.ContainerImage.fromRegistry("nginx:latest"),
+      portMappings: [
+        {
+          containerPort: 80,
+        },
+      ],
+    });
 
-    // const web = new ecs.FargateService(this, "safe-txs-web", {
-    //   cluster: ecsCluster,
-    //   taskDefinition: task,
-    //   desiredCount: 1,
-    //   enableExecuteCommand: true,
-    // });
+    nginxContainer.addMountPoints({
+      sourceVolume: "nginx-shared",
+      containerPath: "/usr/share/nginx/html/static",
+      readOnly: true,
+    });
 
-    // // Worker
-    // const workerTaskDefinition = new ecs.FargateTaskDefinition(
-    //   this,
-    //   "SafeTransactionServiceWorker",
-    //   {
-    //     cpu: 512,
-    //     memoryLimitMiB: 1024,
-    //     family: "SafeServices",
-    //   }
-    // );
+    const web = new ecs.FargateService(this, "safe-txs-web", {
+      cluster: ecsCluster,
+      taskDefinition: task,
+      desiredCount: 1,
+      enableExecuteCommand: true,
+      serviceName: "safe-txs-web",
+    });
 
-    // workerTaskDefinition.addContainer("Worker", {
-    //   containerName: "worker",
-    //   command: ["docker/web/celery/worker/run.sh"],
-    //   logging: new ecs.AwsLogDriver({
-    //     logGroup,
-    //     streamPrefix: "SafeTransactionServiceWorker",
-    //     mode: ecs.AwsLogDriverMode.NON_BLOCKING,
-    //   }),
-    //   image: ecs.ContainerImage.fromAsset("docker/safe-transaction-service"),
-    //   environment: {},
-    //   secrets: {},
-    // });
+    // Worker
+    const workerTaskDefinition = new ecs.FargateTaskDefinition(
+      this,
+      "safe-txs-worker-task-definition",
+      {
+        cpu: 512,
+        memoryLimitMiB: 1024,
+        family: "safe-txs",
+      }
+    );
 
-    // const workerService = new ecs.FargateService(this, "WorkerService", {
-    //   cluster: ecsCluster,
-    //   taskDefinition: workerTaskDefinition,
-    //   desiredCount: 1,
-    // });
+    workerTaskDefinition.addContainer("txs-worker-indexer", {
+      containerName: "txs-worker-indexer",
+      command: ["docker/web/celery/worker/run.sh"],
+      logging: new ecs.AwsLogDriver({
+        logGroup,
+        streamPrefix: "safe-txs-worker-indexer",
+        mode: ecs.AwsLogDriverMode.NON_BLOCKING,
+      }),
+      image: ecs.ContainerImage.fromAsset("docker/safe-transaction-service"),
+      environment: {
+        ...environment,
+        RUN_MIGRATIONS: "1",
+        WORKER_QUEUES: "default,indexing",
+      },
+      secrets: {
+        DJANGO_SECRET_KEY: ecs.Secret.fromSecretsManager(
+          safeTxsSecretKey,
+          "TXS_DJANGO_SECRET_KEY"
+        ),
+      },
+    });
 
-    // // Scheduled Tasks
-    // const scheduleTaskDefinition = new ecs.FargateTaskDefinition(
-    //   this,
-    //   "SafeTransactionServiceSchedule",
-    //   {
-    //     cpu: 512,
-    //     memoryLimitMiB: 1024,
-    //     family: "SafeServices",
-    //   }
-    // );
+    workerTaskDefinition.addContainer("txs-worker-contracts-tokens", {
+      containerName: "txs-worker-contracts-tokens",
+      command: ["docker/web/celery/worker/run.sh"],
+      logging: new ecs.AwsLogDriver({
+        logGroup,
+        streamPrefix: "safe-worker-contracts-tokens",
+        mode: ecs.AwsLogDriverMode.NON_BLOCKING,
+      }),
+      image: ecs.ContainerImage.fromAsset("docker/safe-transaction-service"),
+      environment: {
+        ...environment,
+        WORKER_QUEUES: "contracts,tokens",
+      },
+      secrets: {
+        DJANGO_SECRET_KEY: ecs.Secret.fromSecretsManager(
+          safeTxsSecretKey,
+          "TXS_DJANGO_SECRET_KEY"
+        ),
+      },
+    });
 
-    // scheduleTaskDefinition.addContainer("Schedule", {
-    //   containerName: "schedule",
-    //   command: ["docker/web/celery/scheduler/run.sh"],
-    //   logging: new ecs.AwsLogDriver({
-    //     logGroup,
-    //     streamPrefix: "SafeTransactionServiceScheduler",
-    //     mode: ecs.AwsLogDriverMode.NON_BLOCKING,
-    //   }),
-    //   image: ecs.ContainerImage.fromAsset("docker/safe-transaction-service"),
-    //   environment: {},
-    //   secrets: {},
-    // });
+    workerTaskDefinition.addContainer("txs-worker-notifications-webhooks", {
+      containerName: "txs-worker-notifications-webhooks",
+      command: ["docker/web/celery/worker/run.sh"],
+      logging: new ecs.AwsLogDriver({
+        logGroup,
+        streamPrefix: "safe-worker-notifications-webhooks",
+        mode: ecs.AwsLogDriverMode.NON_BLOCKING,
+      }),
+      image: ecs.ContainerImage.fromAsset("docker/safe-transaction-service"),
+      environment: {
+        ...environment,
+        WORKER_QUEUES: "notifications,webhooks",
+      },
+      secrets: {
+        DJANGO_SECRET_KEY: ecs.Secret.fromSecretsManager(
+          safeTxsSecretKey,
+          "TXS_DJANGO_SECRET_KEY"
+        ),
+      },
+    });
 
-    // const scheduleService = new ecs.FargateService(this, "ScheduleService", {
-    //   cluster: ecsCluster,
-    //   taskDefinition: scheduleTaskDefinition,
-    //   desiredCount: 1,
-    // });
+    const workerService = new ecs.FargateService(
+      this,
+      "safe-tsx-worker-service",
+      {
+        cluster: ecsCluster,
+        taskDefinition: workerTaskDefinition,
+        desiredCount: 2,
+        serviceName: "safe-tsx-worker-service",
+      }
+    );
 
-    // // Setup LB and redirect traffic to web and static containers
-    // const listener =
-    //   loadBalancer.safeTransactionServiceLoadBalancer.addListener("Listener", {
-    //     port: 80,
-    //   });
+    // Scheduled Tasks
+    const scheduleTaskDefinition = new ecs.FargateTaskDefinition(
+      this,
+      "safe-txs-schedule-task-definition",
+      {
+        cpu: 512,
+        memoryLimitMiB: 1024,
+        family: "safe-txs",
+      }
+    );
 
-    // listener.addTargets("Static", {
-    //   port: 80,
-    //   targets: [
-    //     webService.loadBalancerTarget({
-    //       containerName: "static",
-    //     }),
-    //   ],
-    //   priority: 1,
-    //   conditions: [elbv2.ListenerCondition.pathPatterns(["/static/*"])],
-    //   healthCheck: {
-    //     path: "/static/drf-yasg/style.css",
-    //   },
-    // });
+    scheduleTaskDefinition.addContainer("safe-txs-schedule-container", {
+      containerName: "safe-txs-schedule",
+      command: ["docker/web/celery/scheduler/run.sh"],
+      logging: new ecs.AwsLogDriver({
+        logGroup,
+        streamPrefix: "safe-txs-schedule",
+        mode: ecs.AwsLogDriverMode.NON_BLOCKING,
+      }),
+      image: ecs.ContainerImage.fromAsset("docker/safe-transaction-service"),
+      environment,
+      secrets: {
+        DJANGO_SECRET_KEY: ecs.Secret.fromSecretsManager(
+          safeTxsSecretKey,
+          "TXS_DJANGO_SECRET_KEY"
+        ),
+      },
+    });
 
-    // listener.addTargets("WebTarget", {
-    //   port: 80,
-    //   targets: [
-    //     webService.loadBalancerTarget({
-    //       containerName: "web",
-    //     }),
-    //   ],
-    // });
+    const scheduleService = new ecs.FargateService(
+      this,
+      "safe-txs-schedule-service",
+      {
+        cluster: ecsCluster,
+        taskDefinition: scheduleTaskDefinition,
+        desiredCount: 1,
+        serviceName: "safe-txs-schedule-service",
+      }
+    );
 
-    // [webService, webService, scheduleService].forEach((service) => {
-    //   service.connections.allowTo(database, ec2.Port.tcp(5432), "RDS");
-    //   service.connections.allowTo(
-    //     redisCluster.connections,
-    //     ec2.Port.tcp(6379),
-    //     "Redis"
-    //   );
-    // });
+    // Setup LB and redirect traffic to web and static containers
+    const listener = safeTxsALB.addListener("Listener", {
+      port: 80,
+    });
+
+    listener.addTargets("safe-txs-staticfiles-target", {
+      port: 80,
+      targets: [
+        web.loadBalancerTarget({
+          containerName: nginxContainer.containerName,
+        }),
+      ],
+      priority: 1,
+      conditions: [elbv2.ListenerCondition.pathPatterns(["/static/*"])],
+      healthCheck: {
+        path: "/static/drf-yasg/style.css",
+      },
+      targetGroupName: "safe-txs-staticfiles-target",
+    });
+
+    listener.addTargets("safe-txs-web-target", {
+      port: 80,
+      targets: [
+        web.loadBalancerTarget({ containerName: webContainer.containerName }),
+      ],
+      targetGroupName: "safe-txs-web-target",
+    });
+
+    [web, workerService, scheduleService].forEach((service) => {
+      service.connections.allowTo(
+        database.cluster,
+        ec2.Port.tcp(5432),
+        "safe-txs-database"
+      );
+      service.connections.allowTo(
+        redis.connections,
+        ec2.Port.tcp(6379),
+        "safe-txs-redis"
+      );
+      service.connections.allowTo(
+        broker.connections,
+        ec2.Port.tcp(5671),
+        "safe-txs-rabbit-mq"
+      );
+    });
   }
 }

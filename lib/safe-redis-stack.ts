@@ -17,15 +17,12 @@ export class SafeRedisStack extends cdk.NestedStack {
 
     const { vpc, clusterName } = props;
 
-    const redisSecurityGroup = new ec2.SecurityGroup(
-      this,
-      "RedisServerSecurityGroup",
-      {
-        vpc,
-        allowAllOutbound: true,
-        description: "security group for redis",
-      }
-    );
+    const redisSecurityGroup = new ec2.SecurityGroup(this, "safe-redis-sg", {
+      vpc,
+      allowAllOutbound: true,
+      description: "security group for redis",
+      securityGroupName: "safe-redis-sg",
+    });
 
     cdk.Tags.of(redisSecurityGroup).add("Name", "redis-server");
 
