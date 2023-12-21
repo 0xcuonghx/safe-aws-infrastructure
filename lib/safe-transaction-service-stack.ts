@@ -26,9 +26,9 @@ export class SafeTransactionServiceStack extends cdk.NestedStack {
 
     const { vpc, logGroup, safeTxsALB } = props;
 
-    const broker = new SafeRabbitMq(this, "safe-txs-rabbit-mq", {
+    const broker = new SafeRabbitMq(this, "safe-txs-rabbitmq", {
       vpc,
-      brokerName: "safe-txs-rabbit-mq",
+      brokerName: "safe-txs-rabbitmq",
     });
 
     const redis = new SafeRedis(this, "safe-txs-redis", {
@@ -75,7 +75,7 @@ export class SafeTransactionServiceStack extends cdk.NestedStack {
       DJANGO_SETTINGS_MODULE: "config.settings.production",
       DEBUG: "0",
       DATABASE_URL: database.uri,
-      ETHEREUM_NODE_URL: "https://rpc-1.japanopenchain.org:8545	",
+      ETHEREUM_NODE_URL: "https://rpc-1.japanopenchain.org:8545",
       ETH_L2_NETWORK: "1",
       REDIS_URL: `redis://${redis.cluster.attrRedisEndpointAddress}:${redis.cluster.attrRedisEndpointPort}`,
       CELERY_BROKER_URL: broker.uri,
