@@ -8,7 +8,6 @@ import { Construct } from "constructs";
 import { SafeClientGatewayStack } from "./safe-client-gateway-stack";
 import { SafeConfigServiceStack } from "./safe-config-service-stack";
 import { SafeTransactionServiceStack } from "./safe-transaction-service-stack";
-import { SafeRabbitMQStack } from "./safe-rabbit-mq-stack";
 import { SafeWalletWebStack } from "./safe-wallet-web-stack";
 
 export class SafeAwsInfrastructureStack extends cdk.Stack {

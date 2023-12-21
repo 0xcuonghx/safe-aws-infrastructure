@@ -4,38 +4,34 @@ import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as amazonmq from "aws-cdk-lib/aws-amazonmq";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 
-interface SafeRabbitMQStackProps extends cdk.StackProps {
+interface SafeRabbitMqProps extends cdk.StackProps {
   vpc: ec2.IVpc;
   brokerName: string;
 }
 
-export class SafeRabbitMQStack extends cdk.NestedStack {
+export class SafeRabbitMq extends Construct {
   private _connections: ec2.Connections;
   private _cluster: amazonmq.CfnBroker;
   private _secret: secretsmanager.Secret;
 
-  constructor(scope: Construct, id: string, props: SafeRabbitMQStackProps) {
-    super(scope, id, props);
+  constructor(scope: Construct, id: string, props: SafeRabbitMqProps) {
+    super(scope, id);
 
     const { vpc, brokerName } = props;
 
-    const rabbitMQSecurityGroup = new ec2.SecurityGroup(
-      this,
-      "safe-rabbit-mq-sg",
-      {
-        vpc,
-        allowAllOutbound: true,
-        description: "security group for rabbitMQ",
-        securityGroupName: "safe-rabbit-mq-sg",
-      }
-    );
+    const sg = new ec2.SecurityGroup(this, "safe-rabbitmq-sg", {
+      vpc,
+      allowAllOutbound: true,
+      description: "security group for rabbitMQ",
+      securityGroupName: "safe-rabbitmq-sg",
+    });
 
     this._connections = new ec2.Connections({
-      securityGroups: [rabbitMQSecurityGroup],
+      securityGroups: [sg],
       defaultPort: ec2.Port.tcp(5671),
     });
 
-    const secrets = new secretsmanager.Secret(this, "safe-rabbit-mq-secrets", {
+    const secrets = new secretsmanager.Secret(this, "safe-rabbitmq-secrets", {
       secretName: `${brokerName}-credentials`,
       generateSecretString: {
         secretStringTemplate: JSON.stringify({
@@ -46,7 +42,7 @@ export class SafeRabbitMQStack extends cdk.NestedStack {
       },
     });
 
-    const rabbitMQ = new amazonmq.CfnBroker(this, "safe-rabbit-mq", {
+    const cluster = new amazonmq.CfnBroker(this, "safe-rabbitmq", {
       brokerName,
       autoMinorVersionUpgrade: true,
       deploymentMode: "SINGLE_INSTANCE",
@@ -57,7 +53,7 @@ export class SafeRabbitMQStack extends cdk.NestedStack {
         general: true,
       },
       publiclyAccessible: false,
-      securityGroups: [rabbitMQSecurityGroup.securityGroupId],
+      securityGroups: [sg.securityGroupId],
       subnetIds: [vpc.privateSubnets[0].subnetId],
       users: [
         {
@@ -67,7 +63,7 @@ export class SafeRabbitMQStack extends cdk.NestedStack {
       ],
     });
 
-    this._cluster = rabbitMQ;
+    this._cluster = cluster;
     this._secret = secrets;
   }
 

@@ -5,8 +5,7 @@ import * as ecs from "aws-cdk-lib/aws-ecs";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
-
-import { SafeRedisStack } from "./safe-redis-stack";
+import { SafeRedis } from "./constructs/safe-redis";
 
 interface SafeClientGatewayStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
@@ -27,7 +26,7 @@ export class SafeClientGatewayStack extends cdk.NestedStack {
     const { vpc, logGroup, secrets, safeCfgALB, safeCgwALB } = props;
 
     // redis
-    const redis = new SafeRedisStack(this, "safe-cgw-redis", {
+    const redis = new SafeRedis(this, "safe-cgw-redis", {
       vpc,
       clusterName: "safe-cgw-redis",
     });

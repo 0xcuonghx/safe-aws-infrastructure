@@ -6,7 +6,7 @@ import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 
 import { Construct } from "constructs";
-import { SafeDatabaseStack } from "./safe-database-stack";
+import { SafePostgres } from "./constructs/safe-postgres";
 
 interface SafeConfigServiceStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
@@ -38,7 +38,7 @@ export class SafeConfigServiceStack extends cdk.NestedStack {
       },
     });
 
-    const database = new SafeDatabaseStack(this, "safe-cfg-database", {
+    const database = new SafePostgres(this, "safe-cfg-database", {
       vpc,
       instanceIdentifier: "safe-cfg-database",
     });

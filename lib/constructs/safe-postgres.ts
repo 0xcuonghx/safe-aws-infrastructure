@@ -4,19 +4,20 @@ import * as rds from "aws-cdk-lib/aws-rds";
 
 import { Construct } from "constructs";
 
-interface SafeDatabaseStackProps extends cdk.StackProps {
+interface SafePostgresProps extends cdk.StackProps {
   vpc: ec2.IVpc;
   instanceIdentifier?: string;
 }
 
-export class SafeDatabaseStack extends cdk.NestedStack {
+export class SafePostgres extends Construct {
   private _cluster: rds.DatabaseInstance;
 
-  constructor(scope: Construct, id: string, props: SafeDatabaseStackProps) {
-    super(scope, id, props);
+  constructor(scope: Construct, id: string, props: SafePostgresProps) {
+    super(scope, id);
+
     const { vpc, instanceIdentifier } = props;
 
-    this._cluster = new rds.DatabaseInstance(this, "SafeDatabase", {
+    this._cluster = new rds.DatabaseInstance(this, "safe-postgres", {
       engine: rds.DatabaseInstanceEngine.postgres({
         version: rds.PostgresEngineVersion.VER_15_4,
       }),

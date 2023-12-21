@@ -6,9 +6,9 @@ import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as elbv2 from "aws-cdk-lib/aws-elasticloadbalancingv2";
 
 import { Construct } from "constructs";
-import { SafeDatabaseStack } from "./safe-database-stack";
-import { SafeRedisStack } from "./safe-redis-stack";
-import { SafeRabbitMQStack } from "./safe-rabbit-mq-stack";
+import { SafeRabbitMq } from "./constructs/safe-rabbitmq";
+import { SafePostgres } from "./constructs/safe-postgres";
+import { SafeRedis } from "./constructs/safe-redis";
 
 interface SafeTransactionServiceStackProps extends cdk.StackProps {
   vpc: ec2.IVpc;
@@ -26,17 +26,17 @@ export class SafeTransactionServiceStack extends cdk.NestedStack {
 
     const { vpc, logGroup, safeTxsALB } = props;
 
-    const broker = new SafeRabbitMQStack(this, "safe-txs-rabbit-mq", {
+    const broker = new SafeRabbitMq(this, "safe-txs-rabbit-mq", {
       vpc,
       brokerName: "safe-txs-rabbit-mq",
     });
 
-    const redis = new SafeRedisStack(this, "safe-txs-redis", {
+    const redis = new SafeRedis(this, "safe-txs-redis", {
       vpc,
       clusterName: "safe-txs-redis",
     });
 
-    const database = new SafeDatabaseStack(this, "safe-txs-database", {
+    const database = new SafePostgres(this, "safe-txs-database", {
       vpc,
       instanceIdentifier: "safe-txs-database",
     });
@@ -296,21 +296,9 @@ export class SafeTransactionServiceStack extends cdk.NestedStack {
     });
 
     [web, workerService, scheduleService].forEach((service) => {
-      service.connections.allowTo(
-        database.cluster,
-        ec2.Port.tcp(5432),
-        "safe-txs-database"
-      );
-      service.connections.allowTo(
-        redis.connections,
-        ec2.Port.tcp(6379),
-        "safe-txs-redis"
-      );
-      service.connections.allowTo(
-        broker.connections,
-        ec2.Port.tcp(5671),
-        "safe-txs-rabbit-mq"
-      );
+      service.connections.allowTo(database.cluster, ec2.Port.tcp(5432));
+      service.connections.allowTo(redis.connections, ec2.Port.tcp(6379));
+      service.connections.allowTo(broker.connections, ec2.Port.tcp(5671));
     });
   }
 }
